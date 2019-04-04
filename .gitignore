@@ -1,0 +1,14 @@
+*.Rproj.user
+*.Rhistory
+*.RData
+*.Ruserdata
+*.Rproj
+*.history
+*.Rproj.user
+.Rproj.user
+.Rproj.user/9924EFBE/console06/150F21FD
+.Rproj.user/9924EFBE/console06/INDEX001
+.Rproj.user/
+.Rproj.user/**
+*.csv
+*.DS_Store
