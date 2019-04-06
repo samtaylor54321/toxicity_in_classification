@@ -16,7 +16,7 @@
 *.csv
 
 # Embeddings
-Embeddings/crawl-300d-2M.vec/crawl-300d-2M.vec
+Embedding_Build/Pretrained_Embeddings/*
 
 # Python checkpoints
 .ipynb_checkpoints/*
