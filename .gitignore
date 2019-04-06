@@ -10,5 +10,16 @@
 .Rproj.user/9924EFBE/console06/INDEX001
 .Rproj.user/
 .Rproj.user/**
-*.csv
 *.DS_Store
+
+# Data
+*.csv
+
+# Embeddings
+Embeddings/crawl-300d-2M.vec/crawl-300d-2M.vec
+
+# Python checkpoints
+.ipynb_checkpoints/*
+*/.ipynb_checkpoints/*
+.idea/*
+*/.idea/*
