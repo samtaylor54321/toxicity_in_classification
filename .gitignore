@@ -11,9 +11,14 @@
 .Rproj.user/
 .Rproj.user/**
 *.DS_Store
+__pycache__/*
+*/__pycache__/*
 
 # Data
 *.csv
+
+# Models
+*.pkl
 
 # Embeddings
 Embedding_Build/Pretrained_Embeddings/*
@@ -23,3 +28,6 @@ Embedding_Build/Pretrained_Embeddings/*
 */.ipynb_checkpoints/*
 .idea/*
 */.idea/*
+
+# Experimental / obsolete stuff
+Misc_Notebooks/*
