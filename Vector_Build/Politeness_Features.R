@@ -8,7 +8,6 @@
 
 library(tidyverse)
 library(politeness)
-library(spacyr)
 
 # Load Datasets ----------------------------------------------------------
 
@@ -24,13 +23,11 @@ test <- read_csv("/Users/samtaylor/Downloads/jigsaw-unintended-bias-in-toxicity-
 # initialise spacy wrapper to make sure that all possible features are created for modelling. NB this should 
 # already be working correctly
 
-spacyr::spacy_initialize()
-
 # sets test to understand how long it takes to create this matrix 
 
 start_time <- Sys.time()
 
-polite_features <- politeness(train$comment_text, metric ='count', drop_blank =TRUE, parser='spacy')
+polite_features <- politeness(train$comment_text, metric ='count', drop_blank =TRUE, parser='none')
 
 end_time <- Sys.time()
 
