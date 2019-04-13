@@ -31,3 +31,6 @@ Embedding_Build/Pretrained_Embeddings/*
 
 # Experimental / obsolete stuff
 Misc_Notebooks/*
+
+# Model results
+Results/*

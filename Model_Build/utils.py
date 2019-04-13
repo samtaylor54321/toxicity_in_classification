@@ -55,14 +55,12 @@ def compute_bnsp_auc(df, subgroup, y_true, y_pred):
     return compute_auc(y_true[mask], y_pred[mask])
 
 
-def compute_bias_metrics_for_model(dataset,
-                                   subgroups,
-                                   y_true,
-                                   y_pred):
+def compute_bias_metrics_for_model(dataset, subgroups, y_true,  y_pred):
     """Computes per-subgroup metrics for all subgroups and one model."""
     records = []
     for subgroup in subgroups:
-        record = {'subgroup': subgroup, 'subgroup_size': len(dataset[dataset[subgroup]]),
+        record = {'subgroup': subgroup,
+                  'subgroup_size': len(dataset[dataset[subgroup]]),
                   'subgroup_auc': compute_subgroup_auc(dataset, subgroup, y_true, y_pred),
                   'bpsn_auc': compute_bpsn_auc(dataset, subgroup, y_true, y_pred),
                   'bnsp_auc': compute_bnsp_auc(dataset, subgroup, y_true, y_pred)}
@@ -76,7 +74,7 @@ def power_mean(series, p):
 
 
 def get_final_metric(bias_df, overall_auc, power=-5, model_weight=0.25):
-    bias_score = np.average([
+    bias_score = np.nanmean([
         power_mean(bias_df['subgroup_auc'], power),
         power_mean(bias_df['bpsn_auc'], power),
         power_mean(bias_df['bnsp_auc'], power)
