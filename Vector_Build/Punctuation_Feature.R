@@ -15,19 +15,30 @@ test <- read_csv("/Users/samtaylor/Documents/Git/kaggle_jigsaw/kaggle_jigsaw/Dat
 
 # Build Function ----------------------------------------------------------
 
-punctuation <- function (tbl, id_var = ".x", text_column = ".y") {
-  tbl %>% 
-    select(id_var, text_column)  %>% 
-    mutate(exclamation = str_detect(text_column, "!"),
-           question = str_count(text_column, "\\?"),
-           )
-}
+punctuation <- function (.data, id_var, text_column) {
+  tbl <- .data %>% 
+    select(id_var, text_column) %>% 
+    mutate(exclamation = str_detect(text_column, 'a'))
 
+    return(tbl)  
+  #%>% 
+    #mutate(exclamation = str_detect(text_column, "!"),
+     #      question = str_count(text_column, "\\?"),
+    #       )
+}
 # Run Function ------------------------------------------------------------
+
+
+punctuation(train, id_var = "id", text_column = "comment_text")
 
 punk <- punctuation(train, id_var ='id', text_column  = "comment_text")
 
 punk$target <- train$target
+
+head(punk, 20) %>% View()
+
+punk %>% head(20) %>% mutate(exclamation = str_detect(comment_text,'!'),
+                             exclamation_count = str_count(comment_text,'!'))
 
 # Plot Function -----------------------------------------------------------
 
