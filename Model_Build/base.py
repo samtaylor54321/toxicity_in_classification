@@ -1,15 +1,11 @@
-import os
 import gc
-import pickle
-import pandas as pd
 import tensorflow as tf
 import keras.backend as K
 from datetime import datetime
-from keras.layers import embeddings, Embedding
+from keras.layers import Embedding
 from keras.callbacks import EarlyStopping
 from sklearn.model_selection import StratifiedKFold
-from sklearn.metrics import roc_auc_score
-from utils import *
+from .utils import *
 
 class BaseClassifier:
     """
@@ -20,7 +16,7 @@ class BaseClassifier:
         """ Set generic parameters """
         self.run_config = params
         self.embedding_path = params['embedding_path']
-        self.identity_data_path = params['identity_data_path']
+        self.identity_data_path = params['train_data_path']
         self.batch_size = params['batch_size']
         self.epochs = params['max_epochs']
         self.bias_identities = get_identities()
