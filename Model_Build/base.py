@@ -20,6 +20,7 @@ class BaseClassifier:
         self.batch_size = params['batch_size']
         self.epochs = params['max_epochs']
         self.bias_identities = get_identities()
+        self.identity_weight = params['identity_weight']
         self.run_timestamp = datetime.now().strftime('%Y%m%d_%H.%M.%S')
         self.comp_metric = None
         self.cv_comp_metrics = []
@@ -31,6 +32,12 @@ class BaseClassifier:
         data = pd.read_csv(self.run_config['sequence_path'],
                            nrows=self.run_config['debug_size'])
         return len(pd.unique(data.values.ravel('K')))
+
+    def load_identity_data(self):
+        identity_data = pd.read_csv(self.identity_data_path,
+                                    usecols=self.bias_identities,
+                                    nrows=self.run_config['debug_size'])
+        return identity_data.fillna(0).astype(bool)
 
     def embedding_as_keras_layer(self):
         """ Load specified embedding as a Keras layer """
@@ -49,15 +56,29 @@ class BaseClassifier:
     def train(self, X_train, y_train, val_idx=None, validation_data=None):
         """ Define a training function with early stopping """
         self.model = self.create_model()
+
+        sample_weights = np.ones([X_train.shape[0], ])
+        if self.identity_weight != 1:
+            identity_data = self.load_identity_data()
+            identity_data = identity_data.loc[~val_idx, :]
+            identity_mask = identity_data.any(axis=1)
+            sample_weights[identity_mask] = sample_weights[identity_mask] \
+                * self.identity_weight
+            del identity_data
+            gc.collect()
+
+        early_stopping_loss = 'loss' if validation_data is None else 'val_loss'
+
         self.result = self.model.fit(
             X_train,
             y_train,
             validation_data=validation_data,
             batch_size=self.batch_size,
             epochs=self.epochs,
+            sample_weight=sample_weights,
             callbacks=[
                 EarlyStopping(
-                    monitor='val_loss',
+                    monitor=early_stopping_loss,
                     min_delta=0.001,
                     patience=3,
                     verbose=1
@@ -67,20 +88,18 @@ class BaseClassifier:
 
         if val_idx is not None and validation_data is not None:
             print('Computing bias metrics...')
-            train = pd.read_csv(self.identity_data_path,
-                                usecols=self.bias_identities,
-                                nrows=self.run_config['debug_size'])
-            train = train.fillna(0).astype(bool)
-            train = train.loc[val_idx, :]
+            identity_data = self.load_identity_data()
+            identity_data = identity_data.loc[val_idx, :]
 
             y_pred = self.model.predict(validation_data[0])
             bias_metrics_df = compute_bias_metrics_for_model(
-                train, self.bias_identities, validation_data[1], y_pred
+                identity_data, self.bias_identities, validation_data[1], y_pred
             )
             self.comp_metric = get_final_metric(
                 bias_metrics_df, roc_auc_score(validation_data[1], y_pred)
             )
-            print('Bias metrics computed')
+            print('Bias metrics computed. Score = {:.4f}'
+                  .format(self.comp_metric))
 
     def cv(self, X, y, cv=StratifiedKFold(3)):
         """ Apply training function in CV fold """
@@ -108,10 +127,3 @@ class BaseClassifier:
 
     def save(self, path):
         pass
-
-    @staticmethod
-    def auc(y_true, y_pred):
-        """ Tensor-based ROC-AUC metric for use as loss function """
-        auc = tf.metrics.auc(y_true, y_pred)[1]
-        K.get_session().run(tf.local_variables_initializer())
-        return auc

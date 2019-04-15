@@ -15,7 +15,7 @@ train_out_path = os.path.join(OUT_PATH, 'tokenised_train_custom_stopwords.csv')
 def tokenise(path):
     # Identify punctuation and stopwords to ignore
     punctuations = string.punctuation
-    custom_stop_words = True
+    custom_stop_words = False
 
     if not custom_stop_words:
         stopwords = list(STOP_WORDS)

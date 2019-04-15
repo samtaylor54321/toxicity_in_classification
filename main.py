@@ -1,4 +1,5 @@
 import pandas as pd
+import keras.backend as K
 from Model_Build.lstm import LSTMClassifier
 from sklearn.model_selection import StratifiedKFold
 
@@ -13,6 +14,7 @@ params = {
     'results_path': 'Results',
 
     'debug_size': None,
+    'identity_weight': 1,
     'models': ['lstm'],
     'lstm_units': 254,
     'batch_size': 2048,
@@ -40,4 +42,6 @@ for model_name in params['models']:
                          random_state=params['random_seed'])
     model.cv(X, y, cv)
     model.train(X, y)
+    K.clear_session()
+    del model.model
     model.save(params['results_path'])

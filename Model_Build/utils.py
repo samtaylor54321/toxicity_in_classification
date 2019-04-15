@@ -1,6 +1,15 @@
 import pandas as pd
 import numpy as np
 from sklearn.metrics import roc_auc_score
+import tensorflow as tf
+import keras.backend as K
+
+
+def auc(y_true, y_pred):
+    """ Tensor-based ROC-AUC metric for use as loss function """
+    auc = tf.metrics.auc(y_true, y_pred)[1]
+    K.get_session().run(tf.local_variables_initializer())
+    return auc
 
 
 def get_identities():
