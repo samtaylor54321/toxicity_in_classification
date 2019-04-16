@@ -1,5 +1,5 @@
 import yaml
-import pickle
+from numpy import mean, nan
 from pathlib import Path
 from .base import BaseClassifier
 from keras.models import Sequential
@@ -28,15 +28,20 @@ class LSTMClassifier(BaseClassifier):
         )
         return model
 
-    def save(self, dir):
-        out_dir = Path(dir)
-        out_dir = out_dir / self.run_timestamp
+    def save(self, path):
+        if len(self.cv_comp_metrics) > 0:
+            score = mean(self.cv_comp_metrics)
+        else:
+            score = self.comp_metric
+        score = nan if score is None else score
+
+        out_dir = Path(path)
+        out_dir = out_dir / '{}_score_{:.4f}'.format(self.run_timestamp, score)
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        model_out_path = out_dir / 'MODEL_lstm.pkl'
-        with open(model_out_path, 'wb') as model_out:
-            pickle.dump(self.model, model_out)
+        results_out_path = out_dir / 'CONFIG_lstm.csv'
+        with results_out_path.open('w') as f:
+             yaml.dump(self.run_config, f)
 
-        results_out_path = outdir / 'RESULTS_lstm.csv')
-        with open(results_out_path, 'w') as results_out:
-            yaml.dump(self.run_config, results_out)
+        model_out_path = out_dir / 'MODEL_lstm.h5'
+        self.model.save(str(model_out_path))
