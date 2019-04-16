@@ -15,43 +15,24 @@ test <- read_csv("/Users/samtaylor/Documents/Git/kaggle_jigsaw/kaggle_jigsaw/Dat
 
 # Build Function ----------------------------------------------------------
 
-punctuation <- function (.data, id_var, text_column) {
-  tbl <- .data %>% 
-    select(id_var, text_column) %>% 
-    mutate(exclamation = str_detect(text_column, 'a'))
-
-    return(tbl)  
-  #%>% 
-    #mutate(exclamation = str_detect(text_column, "!"),
-     #      question = str_count(text_column, "\\?"),
-    #       )
+punctuation <- function (.data, id_col, text_col) {
+  .data <- .data %>% 
+    dplyr::select(!!ensym(id_col), !!ensym(text_col)) %>% 
+    dplyr::mutate(exclamation = str_detect(!!ensym(text_col),'!'),
+                  question = str_detect(!!ensym(text_col),'\\?'),
+                  exclamation_count = str_count(!!ensym(text_col),'!'),
+                  question_count = str_count(!!ensym(text_col),'\\?'),
+                  semi_colon = str_detect(!!ensym(text_col), ';'),
+                  semi_colon_count = str_count(!!ensym(text_col), ';'),
+                  amp = str_detect(!!ensym(text_col), '&'),
+                  amp_count = str_count(!!ensym(text_col), '&'))
+  .data 
 }
-# Run Function ------------------------------------------------------------
+
+ggplot(punc, aes(x=exclamation_count, y=toxicity)) + geom_point() + geom_smooth(method='lm')
 
 
-punctuation(train, id_var = "id", text_column = "comment_text")
 
-punk <- punctuation(train, id_var ='id', text_column  = "comment_text")
+punc <- punctuation(train, id, comment_text)
+punc$toxicity <- train$target
 
-punk$target <- train$target
-
-head(punk, 20) %>% View()
-
-punk %>% head(20) %>% mutate(exclamation = str_detect(comment_text,'!'),
-                             exclamation_count = str_count(comment_text,'!'))
-
-# Plot Function -----------------------------------------------------------
-
-ggplot(punk, aes(x=as.factor(exclamation), y=target)) + geom_boxplot()
-
-train %>% select(comment_text, target) %>% mutate(exclamation = str_detect(comment_text, "!")) %>% 
-  ggplot(aes(x=exclamation, y=target)) + geom_boxplot()
-
-
-# work out if differene between groups is statistically signifcant - is there
-# any prediction power
-
-train %>% select(comment_text, target) %>% mutate(exclamation = str_detect(comment_text, "!")) %>% 
-  group_by(exclamation) %>% summarise(mean_target = mean(target),
-                                      median_target = median(target),
-                                      observations =n())
