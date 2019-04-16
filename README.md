@@ -25,7 +25,7 @@ Urban Dictionary Corpus
 
 https://www.kaggle.com/therohk/urban-dictionary-words-dataset 
 
-# Academic Research
+Academic Research
 
 Hate Speech Classifier 
 
@@ -33,7 +33,7 @@ https://aaai.org/ocs/index.php/ICWSM/ICWSM17/paper/view/15665/14843  (Paper)
 
 https://github.com/t-davidson/hate-speech-and-offensive-language (Github)
 
-# API
+API
 
 Perspective API
 
