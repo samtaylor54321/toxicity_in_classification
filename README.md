@@ -1,4 +1,5 @@
-# kaggle_jigsaw
+# Kaggle Jigsaw Bias in Toxicity Classification challenge
+
 Repo for Kaggle Jigsaw Competition
 
 https://www.kaggle.com/c/jigsaw-unintended-bias-in-toxicity-classification/data
