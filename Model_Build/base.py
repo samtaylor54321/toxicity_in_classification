@@ -7,21 +7,22 @@ from keras.layers import Embedding
 from keras.callbacks import EarlyStopping
 from sklearn.model_selection import StratifiedKFold
 from .utils import *
+from .embeddings import *
 
 class BaseClassifier:
     """
     Base class of Keras classifiers
     """
 
-    def __init__(self, params):
+    def __init__(self, params, word_index):
         """ Set generic parameters """
         self.run_config = params
-        self.embedding_path = params['embedding_path']
+        self.word_index = word_index
+        self.embedding = params['embedding']
         self.identity_data_path = params['train_data_path']
         self.batch_size = params['batch_size']
         self.epochs = params['max_epochs']
         self.bias_identities = get_identities()
-        self.identity_weight = params['identity_weight']
         self.run_timestamp = datetime.now().strftime('%Y%m%d_%H.%M.%S')
         self.comp_metric = None
         self.cv_comp_metrics = []
@@ -42,10 +43,19 @@ class BaseClassifier:
 
     def embedding_as_keras_layer(self):
         """ Load specified embedding as a Keras layer """
-        if self.embedding_path:
-            embedding_matrix = pd.read_csv(self.embedding_path)
-            return Embedding(embedding_matrix.shape[0],
-                             embedding_matrix.shape[1],
+        embedding_details = get_embedding_details(self.embedding)
+        if self.embedding == 'word2vec':
+            embedding_matrix = pd.read_csv(embedding_details['path'])
+            return Embedding(*embedding_matrix.shape,
+                             weights=[embedding_matrix],
+                             trainable=False)
+        elif self.embedding in ['ft_common_crawl', 'glove_twitter']:
+            embedding_matrix = build_embedding_matrix(
+                self.word_index,
+                embedding_details['path'],
+                embedding_details['dim']
+            )
+            return Embedding(*embedding_matrix.shape,
                              weights=[embedding_matrix],
                              trainable=False)
         else:
@@ -54,7 +64,7 @@ class BaseClassifier:
     def create_model(self):
         pass
 
-    def train(self, X, y, train_idx=None, val_idx=None):
+    def train(self, X, y, train_idx=None, val_idx=None, sample_weights=None):
         """ Define a training function with early stopping """
         if train_idx is not None:
             X_train = X[train_idx]
@@ -66,6 +76,7 @@ class BaseClassifier:
                 y_train = y[train_idx]
                 y_val = y[val_idx]
             validation_data = [X_val, y_val]
+            sample_weights = sample_weights[train_idx]
         else:
             X_train = X
             y_train = y
@@ -74,17 +85,6 @@ class BaseClassifier:
         gc.collect()
 
         self.model = self.create_model()
-        sample_weights = np.ones([X_train.shape[0], ])
-        if self.identity_weight != 1:
-            identity_data = self.load_identity_data()
-            if train_idx is not None:
-                identity_data = identity_data.iloc[train_idx, :]
-            identity_mask = identity_data.any(axis=1)
-            sample_weights[identity_mask] = sample_weights[identity_mask] \
-                * self.identity_weight
-            del identity_data
-            gc.collect()
-
         early_stopping_loss = 'loss' if train_idx is None else 'val_loss'
 
         self.result = self.model.fit(
@@ -119,12 +119,13 @@ class BaseClassifier:
             print('Bias metrics computed. Score = {:.4f}'
                   .format(self.comp_metric))
 
-    def cv(self, X, y, cv=StratifiedKFold(3)):
+    def cv(self, X, y, cv=StratifiedKFold(3), sample_weights=None):
         """ Apply training function in CV fold """
-        for fold_no, (train_idx, val_idx) in enumerate(cv.split(X, y)):
+        for fold_no, (train_idx, val_idx) in \
+                enumerate(cv.split(X, np.round(y))):
             print('Fitting fold {} / {}\n'.format(fold_no + 1, cv.get_n_splits()))
 
-            self.train(X, y, train_idx, val_idx)
+            self.train(X, y, train_idx, val_idx, sample_weights)
             self.cv_comp_metrics.append(self.comp_metric)
             self.cv_results.append(self.result.history)
 

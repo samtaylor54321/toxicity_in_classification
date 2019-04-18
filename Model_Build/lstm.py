@@ -1,13 +1,13 @@
 from .base import BaseClassifier
 from keras.models import Sequential
 from keras.layers import Dense, LSTM
-from .utils import auc
+from .utils import auc, custom_loss
 
 
 class LSTMClassifier(BaseClassifier):
 
-    def __init__(self, params):
-        super().__init__(params)
+    def __init__(self, params, word_index):
+        super().__init__(params, word_index)
         self.__name__ = 'lstm_classifier'
         self.lstm_units = params['lstm_units']
 
@@ -21,7 +21,7 @@ class LSTMClassifier(BaseClassifier):
         model.add(Dense(units=1,
                         activation='sigmoid'))
         model.compile(
-            loss='binary_crossentropy',
+            loss=custom_loss,
             optimizer='nadam',
             metrics=[auc]
         )

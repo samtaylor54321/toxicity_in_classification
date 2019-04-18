@@ -1,51 +1,12 @@
 import gc
-import pickle
 import string
-import pandas as pd
+import pickle
 import numpy as np
-from pathlib import Path
-from keras.models import load_model
-from keras.preprocessing.text import Tokenizer
-from keras.preprocessing.sequence import pad_sequences
-import tensorflow as tf
-import keras.backend as K
-
+import pandas as pd
 from spacy.lang.en.stop_words import STOP_WORDS
 from spacy.lang.en import English
-
-
-# Paths to things we'll need
-path = Path('.')
-test_path = path / 'Data' / 'test.csv'
-sequencer = path / 'Model_Build' / 'Trained_Models' / 'word2vec_model.pkl'
-model = path / 'Results' / '20190413_09.43.22_score_0.9191' / 'MODEL_lstm.h5'
-
-params = {
-    'max_sequence_length': 100
-}
-
-
-def main(data_path, model_path):
-    # Load and tokenise
-    test = pd.read_csv(data_path)
-    X, y, _, _, _ = \
-        get_weights_and_sequence_tokens(test, params, train=False)
-
-    # Run model
-    model = load_model(str(model_path), custom_objects={'auc': auc})
-    y_pred = model.predict(X)
-
-    # Submit
-    submission = pd.DataFrame({'id': test['id'],
-                               'prediction': y_pred})
-    submission.to_csv('submission.csv', index=False)
-
-
-def auc(y_true, y_pred):
-    """ Tensor-based ROC-AUC metric for use as loss function """
-    auc = tf.metrics.auc(y_true, y_pred)[1]
-    K.get_session().run(tf.local_variables_initializer())
-    return auc
+from keras.preprocessing.text import Tokenizer
+from keras.preprocessing.sequence import pad_sequences
 
 
 def spacy_tokenise_and_lemmatize(df):
@@ -160,7 +121,3 @@ def get_weights_and_sequence_tokens(df, params, train=True):
     gc.collect()
 
     return X, y, y_aux, word_index, weights
-
-
-if __name__ == '__main__':
-    main(test_path, model)

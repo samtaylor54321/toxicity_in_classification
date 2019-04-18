@@ -1,8 +1,10 @@
+import gc
 import pandas as pd
 import numpy as np
 from sklearn.metrics import roc_auc_score
 import tensorflow as tf
 import keras.backend as K
+from keras.losses import binary_crossentropy
 
 
 def auc(y_true, y_pred):
@@ -45,6 +47,11 @@ def compute_auc(y_true, y_pred):
         return roc_auc_score(y_true, y_pred)
     except ValueError:
         return np.nan
+
+
+def custom_loss(y_true, y_pred):
+    return binary_crossentropy(K.reshape(y_true, (-1, 1)),
+                               y_pred)
 
 
 def compute_subgroup_auc(df, subgroup, y_true, y_pred):
