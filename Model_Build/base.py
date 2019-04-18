@@ -1,6 +1,7 @@
 import gc
-import tensorflow as tf
-import keras.backend as K
+import yaml
+from numpy import mean, nan
+from pathlib import Path
 from datetime import datetime
 from keras.layers import Embedding
 from keras.callbacks import EarlyStopping
@@ -53,21 +54,38 @@ class BaseClassifier:
     def create_model(self):
         pass
 
-    def train(self, X_train, y_train, val_idx=None, validation_data=None):
+    def train(self, X, y, train_idx=None, val_idx=None):
         """ Define a training function with early stopping """
-        self.model = self.create_model()
+        if train_idx is not None:
+            X_train = X[train_idx]
+            X_val = X[val_idx]
+            if isinstance(y, pd.Series):
+                y_train = y.iloc[train_idx]
+                y_val = y.iloc[val_idx]
+            else:
+                y_train = y[train_idx]
+                y_val = y[val_idx]
+            validation_data = [X_val, y_val]
+        else:
+            X_train = X
+            y_train = y
+            validation_data = None
+        del X, y
+        gc.collect()
 
+        self.model = self.create_model()
         sample_weights = np.ones([X_train.shape[0], ])
         if self.identity_weight != 1:
             identity_data = self.load_identity_data()
-            identity_data = identity_data.loc[~val_idx, :]
+            if train_idx is not None:
+                identity_data = identity_data.iloc[train_idx, :]
             identity_mask = identity_data.any(axis=1)
             sample_weights[identity_mask] = sample_weights[identity_mask] \
                 * self.identity_weight
             del identity_data
             gc.collect()
 
-        early_stopping_loss = 'loss' if validation_data is None else 'val_loss'
+        early_stopping_loss = 'loss' if train_idx is None else 'val_loss'
 
         self.result = self.model.fit(
             X_train,
@@ -86,17 +104,17 @@ class BaseClassifier:
             ]
         )
 
-        if val_idx is not None and validation_data is not None:
+        if train_idx is not None:
             print('Computing bias metrics...')
             identity_data = self.load_identity_data()
-            identity_data = identity_data.loc[val_idx, :]
+            identity_data = identity_data.iloc[val_idx, :]
 
-            y_pred = self.model.predict(validation_data[0])
+            y_pred = self.model.predict(X_val)
             bias_metrics_df = compute_bias_metrics_for_model(
-                identity_data, self.bias_identities, validation_data[1], y_pred
+                identity_data, self.bias_identities, y_val, y_pred
             )
             self.comp_metric = get_final_metric(
-                bias_metrics_df, roc_auc_score(validation_data[1], y_pred)
+                bias_metrics_df, roc_auc_score(y_val, y_pred)
             )
             print('Bias metrics computed. Score = {:.4f}'
                   .format(self.comp_metric))
@@ -105,25 +123,37 @@ class BaseClassifier:
         """ Apply training function in CV fold """
         for fold_no, (train_idx, val_idx) in enumerate(cv.split(X, y)):
             print('Fitting fold {} / {}\n'.format(fold_no + 1, cv.get_n_splits()))
-            X_train = X[train_idx]
-            X_val = X[val_idx]
-            if isinstance(y, pd.Series):
-                y_train = y.iloc[train_idx]
-                y_val = y.iloc[val_idx]
-            else:
-                y_train = y[train_idx]
-                y_val = y[val_idx]
 
-            self.train(X_train, y_train, val_idx, [X_val, y_val])
+            self.train(X, y, train_idx, val_idx)
             self.cv_comp_metrics.append(self.comp_metric)
-            self.cv_results.append(self.result)
-            if fold_no < cv.get_n_splits() - 1:
-                K.clear_session()
-                del self.model
-                gc.collect()
+            self.cv_results.append(self.result.history)
+
+            K.clear_session()
+            del self.model
+            gc.collect()
 
         self.run_config['cv_comp_metrics'] = self.cv_comp_metrics
         self.run_config['cv_results'] = self.cv_results
 
     def save(self, path):
-        pass
+        if len(self.cv_comp_metrics) > 0:
+            score = mean(self.cv_comp_metrics)
+        else:
+            score = self.comp_metric
+        score = nan if score is None else score
+
+        out_dir = Path(path)
+        out_dir = out_dir / '{}_score_{:.4f}'.format(self.run_timestamp, score)
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        results_out_path = out_dir / 'CONFIG_{}.yaml'.format(self.__name__)
+        self.run_config['cv_comp_metrics'] = \
+            [str(x) for x in self.run_config['cv_comp_metrics']]
+        self.run_config['cv_results'] = \
+            {key: [str(x) for x in val]
+             for key, val in self.run_config['cv_results'][0].items()}
+        with results_out_path.open('w') as f:
+             yaml.dump(self.run_config, f)
+
+        model_out_path = out_dir / 'MODEL_{}.h5'.format(self.__name__)
+        self.model.save(str(model_out_path))

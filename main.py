@@ -13,8 +13,8 @@ params = {
                       'word2vec_embedding_weights_custom_stopwords.csv',
     'results_path': 'Results',
 
-    'debug_size': None,
-    'identity_weight': 1,
+    'debug_size': 1000,
+    'identity_weight': 1.2,
     'models': ['lstm'],
     'lstm_units': 254,
     'batch_size': 2048,
@@ -42,6 +42,4 @@ for model_name in params['models']:
                          random_state=params['random_seed'])
     model.cv(X, y, cv)
     model.train(X, y)
-    K.clear_session()
-    del model.model
     model.save(params['results_path'])
