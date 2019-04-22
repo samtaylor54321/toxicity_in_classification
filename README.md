@@ -16,19 +16,19 @@ https://www.kaggle.com/datasnaek/youtube
 
 Swearword Corpus
 
-http://www.bannedwordlist.com/ 
+http://www.bannedwordlist.com/
 
 Emoji Sentiment Ranking
 
-http://kt.ijs.si/data/Emoji_sentiment_ranking/index.html 
+http://kt.ijs.si/data/Emoji_sentiment_ranking/index.html
 
 Urban Dictionary Corpus
 
-https://www.kaggle.com/therohk/urban-dictionary-words-dataset 
+https://www.kaggle.com/therohk/urban-dictionary-words-dataset
 
 Academic Research
 
-Hate Speech Classifier 
+Hate Speech Classifier
 
 https://aaai.org/ocs/index.php/ICWSM/ICWSM17/paper/view/15665/14843  (Paper)
 
@@ -49,6 +49,7 @@ Metric = competition's custom bias metric
 | --- | --- | --- | --- | --- |
 | Single LSTM | Custom word2vec | Default stopwords | 0.9191 |  |
 | Single LSTM | Custom word2vec | Custom stopwords | 0.9194 |  |
+| Single LSTM | fastText Common Crawl | Batch size halved | 0.9286 |  |
 
 ## Embeddings
 
@@ -58,4 +59,3 @@ Word embeddings to try
 - [GloVe Twitter embedding](https://nlp.stanford.edu/projects/glove/)
 - Train a custom word2vec embedding
 - Let keras train one during main model training
-

@@ -25,10 +25,6 @@ model_dict = {
     'lstm': LSTMClassifier,
 }
 
-print('Sleeping...')
-time.sleep(18000)
-print('Awake!')
-
 df = pd.read_csv(params['train_data_path'], nrows=params['debug_size'])
 X, y, _, word_index, sample_weight = \
     get_weights_and_sequence_tokens(df, params)
