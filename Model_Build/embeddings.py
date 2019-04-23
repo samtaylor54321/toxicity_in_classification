@@ -31,6 +31,7 @@ def get_embedding_details(name):
             raise e
         return embedding
 
+
 def get_coefs(word, *arr):
     return word, np.asarray(arr, dtype='float32')
 

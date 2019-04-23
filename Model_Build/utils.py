@@ -49,11 +49,6 @@ def compute_auc(y_true, y_pred):
         return np.nan
 
 
-def custom_loss(y_true, y_pred):
-    return binary_crossentropy(K.reshape(y_true, (-1, 1)),
-                               y_pred)
-
-
 def compute_subgroup_auc(df, subgroup, y_true, y_pred):
     mask = df[subgroup]
     return compute_auc(y_true[mask], y_pred[mask])

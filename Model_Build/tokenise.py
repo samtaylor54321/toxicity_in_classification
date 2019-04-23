@@ -10,7 +10,11 @@ from keras.preprocessing.sequence import pad_sequences
 
 
 def spacy_tokenise_and_lemmatize(df):
-    # Identify punctuation and stopwords to ignore
+    """
+    Remove punctuation as per Spacy and a custom stopword list.
+    Lemmatize.
+    Set everythin lower case.
+    """
     punctuations = string.punctuation
     custom_stop_words = False
 
@@ -52,7 +56,7 @@ def spacy_tokenise_and_lemmatize(df):
 
 def get_weights(df):
     """
-    Inspired by:
+    Weight records that mention identites for bias control. Inspired by:
     https://www.kaggle.com/tanreinama/simple-lstm-using-identity-parameters-solution/
     """
     identity_columns = ['asian', 'atheist',
@@ -87,8 +91,12 @@ def separate_target(df):
 
 
 def sequence_tokens(df, params, train=True):
+    """
+    Convert the sentences to sequences of integers corresponding to words.
+    Save the fitted indexer/tokeniser for use in submission
+    """
     if train:
-        test = pd.read_csv('Data/test.csv')
+        test = pd.read_csv('Data/test.csv', nrows=params['debug_size'])
         print('Tokenising test set')
         test = spacy_tokenise_and_lemmatize(test)
         tokenizer = Tokenizer()
@@ -100,7 +108,13 @@ def sequence_tokens(df, params, train=True):
         del test
     else:
         print('Loading pretrained tokenizer')
-        tokenizer = pickle.load(open('Model_Build/Trained_Models/keras_tokeniser.pkl', 'wb'))
+        with open('Model_Build/Trained_Models/keras_tokeniser.pkl', 'wb') as f:
+            try:
+                tokenizer = pickle.load(f)
+            except FileNotFoundError as e:
+                print('Can\'t find prefitted tokeniser. May need to upload'
+                      'to Kaggle')
+                raise e
         word_index = tokenizer.word_index
 
     print('Sequencing and padding tokenised text')

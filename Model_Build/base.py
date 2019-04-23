@@ -31,7 +31,7 @@ class BaseClassifier:
         self.model = None
 
     def get_n_unique_words(self):
-        data = pd.read_csv(self.identity_data_path,
+        data = pd.read_csv(self.run_config['train_data_path'],
                            nrows=self.run_config['debug_size'])
         return len(pd.unique(data.values.ravel('K')))
 
