@@ -1,5 +1,4 @@
 import pandas as pd
-import time
 from Model_Build.lstm import LSTMClassifier
 from sklearn.model_selection import StratifiedKFold
 from Model_Build.tokenise import get_weights_and_sequence_tokens
@@ -9,8 +8,7 @@ from Model_Build.tokenise import get_weights_and_sequence_tokens
 params = {
     'train_data_path': 'Data/train.csv',
     'results_path': 'Results',
-
-    'embedding': 'glove_twitter',  # None for a trainable Keras embedding
+    'embedding': 'ft_common_crawl',  # See embeddings.py for dict of options
     'debug_size': None,
     'max_sequence_length': 100,
     'models': ['lstm'],

@@ -31,7 +31,7 @@ class BaseClassifier:
         self.model = None
 
     def get_n_unique_words(self):
-        data = pd.read_csv(self.run_config['sequence_path'],
+        data = pd.read_csv(self.identity_data_path,
                            nrows=self.run_config['debug_size'])
         return len(pd.unique(data.values.ravel('K')))
 
@@ -150,9 +150,12 @@ class BaseClassifier:
         results_out_path = out_dir / 'CONFIG_{}.yaml'.format(self.__name__)
         self.run_config['cv_comp_metrics'] = \
             [str(x) for x in self.run_config['cv_comp_metrics']]
-        self.run_config['cv_results'] = \
-            {key: [str(x) for x in val]
-             for key, val in self.run_config['cv_results'][0].items()}
+        scores = {}
+        for i, fold_scores in enumerate(self.run_config['cv_results']):
+            scores['fold_' + str(i)] = \
+                {metric: [str(score) for score in scores]
+                for metric, scores in fold_scores.items()}
+        self.run_config['cv_results'] = scores
         with results_out_path.open('w') as f:
              yaml.dump(self.run_config, f)
 

@@ -50,6 +50,7 @@ Metric = competition's custom bias metric
 | Single LSTM | Custom word2vec | Default stopwords | 0.9191 |  |
 | Single LSTM | Custom word2vec | Custom stopwords | 0.9194 |  |
 | Single LSTM | fastText Common Crawl | Batch size halved | 0.9286 |  |
+| Single LSTM | GloVe Twitter | Same as above | 0.9244 |  |
 
 ## Embeddings
 
