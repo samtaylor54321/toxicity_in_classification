@@ -1,7 +1,6 @@
-import pandas as pd
 from Model_Build.lstm import LSTMClassifier
 from sklearn.model_selection import StratifiedKFold
-from Model_Build.tokenise import get_weights_and_sequence_tokens
+from Model_Build.tokenise import *
 
 
 # User defined params
@@ -24,8 +23,11 @@ model_dict = {
 }
 
 df = pd.read_csv(params['train_data_path'], nrows=params['debug_size'])
-X, y, _, word_index, sample_weight = \
-    get_weights_and_sequence_tokens(df, params)
+sample_weight = get_weights(df)
+df, y = separate_target(df)
+df = spacy_tokenise_and_lemmatize(df)
+X, word_index = sequence_tokens(df, params, train=True)
+del df
 
 for model_name in params['models']:
     model = model_dict[model_name](params, word_index)

@@ -50,7 +50,7 @@ def spacy_tokenise_and_lemmatize(df):
     return df
 
 
-def get_weights_and_sequence_tokens(df, params, train=True):
+def get_weights(df):
     """
     Inspired by:
     https://www.kaggle.com/tanreinama/simple-lstm-using-identity-parameters-solution/
@@ -78,14 +78,17 @@ def get_weights_and_sequence_tokens(df, params, train=True):
                  (df[identity_columns].fillna(0).values >= 0.5).sum(axis=1).astype(bool).astype(np.int)) > 1).astype(
         bool).astype(np.int) / 4
     # loss_weight = 1.0 / weights.mean()
+    return weights
 
+
+def separate_target(df):
     y = (df['target'].values >= 0.5).astype(np.int)
-    y_aux = df[['target', 'severe_toxicity', 'obscene', 'identity_attack', 'insult', 'threat']].values
+    return df.drop(columns=['target']), y
 
-    print('Tokenising train set')
-    df = spacy_tokenise_and_lemmatize(df)
+
+def sequence_tokens(df, params, train=True):
     if train:
-        test = pd.read_csv('Data/test.csv', nrows=1000)
+        test = pd.read_csv('Data/test.csv')
         print('Tokenising test set')
         test = spacy_tokenise_and_lemmatize(test)
         tokenizer = Tokenizer()
@@ -117,7 +120,7 @@ def get_weights_and_sequence_tokens(df, params, train=True):
         X = tokenizer.texts_to_sequences(list(df['comment_text']))
         X = pad_sequences(X, maxlen=params['max_sequence_length'])
 
-    del identity_columns, tokenizer, df
+    del tokenizer, df
     gc.collect()
 
-    return X, y, y_aux, word_index, weights
+    return X, word_index

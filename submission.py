@@ -2,43 +2,42 @@ import gc
 import pickle
 import string
 import pandas as pd
-import numpy as np
-from pathlib import Path
 from keras.models import load_model
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
-import tensorflow as tf
 import keras.backend as K
-
+import tensorflow as tf
+from keras.losses import binary_crossentropy
 from spacy.lang.en.stop_words import STOP_WORDS
 from spacy.lang.en import English
 
-
 # Paths to things we'll need
-path = Path('.')
-test_path = path / 'Data' / 'test.csv'
-sequencer = path / 'Model_Build' / 'Trained_Models' / 'word2vec_model.pkl'
-model = path / 'Results' / '20190413_09.43.22_score_0.9191' / 'MODEL_lstm.h5'
+test_path = '../input/jigsaw-unintended-bias-in-toxicity-classification/test.csv'
+model_path = '../input/lstm-commoncrawl-classifier/MODEL_lstm_classifier.h5'
 
 params = {
-    'max_sequence_length': 100
+    'max_sequence_length': 100,
+    'embedding': None
 }
 
 
 def main(data_path, model_path):
     # Load and tokenise
     test = pd.read_csv(data_path)
-    X, y, _, _, _ = \
-        get_weights_and_sequence_tokens(test, params, train=False)
+    X = get_weights_and_sequence_tokens(test, params, train=False)
 
     # Run model
-    model = load_model(str(model_path), custom_objects={'auc': auc})
+    print('Loading model')
+    model = load_model(model_path, custom_objects={'auc': auc, 'custom_loss': custom_loss})
+    print('Predicting')
     y_pred = model.predict(X)
 
     # Submit
-    submission = pd.DataFrame({'id': test['id'],
-                               'prediction': y_pred})
+    print('Saving submission')
+    submission = pd.DataFrame({'id': test.index,
+                               'prediction': y_pred.reshape(-1, )})
     submission.to_csv('submission.csv', index=False)
+    print('Finished')
 
 
 def auc(y_true, y_pred):
@@ -46,6 +45,11 @@ def auc(y_true, y_pred):
     auc = tf.metrics.auc(y_true, y_pred)[1]
     K.get_session().run(tf.local_variables_initializer())
     return auc
+
+
+def custom_loss(y_true, y_pred):
+    return binary_crossentropy(K.reshape(y_true, (-1, 1)),
+                               y_pred)
 
 
 def spacy_tokenise_and_lemmatize(df):
@@ -94,37 +98,11 @@ def get_weights_and_sequence_tokens(df, params, train=True):
     Inspired by:
     https://www.kaggle.com/tanreinama/simple-lstm-using-identity-parameters-solution/
     """
-    identity_columns = ['asian', 'atheist',
-                        'bisexual', 'black', 'buddhist', 'christian', 'female',
-                        'heterosexual', 'hindu', 'homosexual_gay_or_lesbian',
-                        'intellectual_or_learning_disability', 'jewish', 'latino', 'male',
-                        'muslim', 'other_disability', 'other_gender',
-                        'other_race_or_ethnicity', 'other_religion',
-                        'other_sexual_orientation', 'physical_disability',
-                        'psychiatric_or_mental_illness', 'transgender', 'white']
-
-    print('Calculating sample weights')
-    # Overall
-    weights = np.ones((len(df),))
-    # Subgroup
-    weights += (df[identity_columns].fillna(0).values >= 0.5).sum(axis=1).astype(bool).astype(np.int) / 4
-    # Background Positive, Subgroup Negative
-    weights += (((df['target'].values >= 0.5).astype(bool).astype(np.int) +
-                 (df[identity_columns].fillna(0).values < 0.5).sum(axis=1).astype(bool).astype(np.int)) > 1).astype(
-        bool).astype(np.int) / 4
-    # Background Negative, Subgroup Positive
-    weights += (((df['target'].values < 0.5).astype(bool).astype(np.int) +
-                 (df[identity_columns].fillna(0).values >= 0.5).sum(axis=1).astype(bool).astype(np.int)) > 1).astype(
-        bool).astype(np.int) / 4
-    # loss_weight = 1.0 / weights.mean()
-
-    y = (df['target'].values >= 0.5).astype(np.int)
-    y_aux = df[['target', 'severe_toxicity', 'obscene', 'identity_attack', 'insult', 'threat']].values
 
     print('Tokenising train set')
     df = spacy_tokenise_and_lemmatize(df)
     if train:
-        test = pd.read_csv('Data/test.csv', nrows=1000)
+        test = pd.read_csv('Data/test.csv')
         print('Tokenising test set')
         test = spacy_tokenise_and_lemmatize(test)
         tokenizer = Tokenizer()
@@ -136,7 +114,7 @@ def get_weights_and_sequence_tokens(df, params, train=True):
         del test
     else:
         print('Loading pretrained tokenizer')
-        tokenizer = pickle.load(open('Model_Build/Trained_Models/keras_tokeniser.pkl', 'wb'))
+        tokenizer = pickle.load(open('../input/keras-tokeniser/keras_tokeniser.pkl', 'rb'))
         word_index = tokenizer.word_index
 
     print('Sequencing and padding tokenised text')
@@ -156,11 +134,11 @@ def get_weights_and_sequence_tokens(df, params, train=True):
         X = tokenizer.texts_to_sequences(list(df['comment_text']))
         X = pad_sequences(X, maxlen=params['max_sequence_length'])
 
-    del identity_columns, tokenizer, df
+    del tokenizer, df
     gc.collect()
 
-    return X, y, y_aux, word_index, weights
+    return X
 
 
 if __name__ == '__main__':
-    main(test_path, model)
+    main(test_path, model_path)
