@@ -9,79 +9,49 @@
 
 library(mlr)
 library(purrr)
-library(lightgbm)
-library(keras)
 library(tidytext)
 library(spacyr)
 library(text2vec)
+library(tidyverse)
+library(politeness)
+library(keras)
 
 # Load Data ---------------------------------------------------------------
 
-train <- read_csv("/Users/samtaylor/Documents/Git/kaggle_jigsaw/kaggle_jigsaw/Data/train.csv")
-test <- read_csv("/Users/samtaylor/Documents/Git/kaggle_jigsaw/kaggle_jigsaw/Data/test.csv")
+train_raw <- read_csv("/Users/samtaylor/Documents/Git/kaggle_jigsaw/kaggle_jigsaw/Data/train.csv")
+test_raw <- read_csv("/Users/samtaylor/Documents/Git/kaggle_jigsaw/kaggle_jigsaw/Data/test.csv")
 
 # Feature Enginering  -----------------------------------------------------------
 
-# tidy data into correct format 
-
+# take a sample of observations to explain
+train <- head(train_raw, 10000)
+# run punctuation and tidy data into correct format for modelling and combine with
+# the punctuation features 
 training_set <- train %>% 
   punctuation(id_col = id, text_col = comment_text) %>% 
-  select(-comment_text) 
-
+  select(-comment_text) %>% cbind(politeness(train$comment_text, parser="none"))
+# remove any logical features and replace with numerics
+training_set <- map_if(training_set, is.logical, as.numeric)
+# convert back to dataframe to capture list creation by map_if
+if (!is.data.frame(training_set)) {
+  training_set <- as.data.frame(training_set)
+} 
+# define correct target variable for the model.
 training_set$target <- as.character(train$target < 0.5)
 
-training_set <- as.data.frame(training_set)
 
-# Test to make sure that any columns are logical are convert to numeric for
-# the purposes of modelling
-  
-training_set <-  as.data.frame(map_if(training_set, is.logical, as.numeric))
 
 # Modelling ---------------------------------------------------------------
 
 # Make Task
-
 task <- makeClassifTask(data =training_set, target = "target")
-
 # Make NB Learner and Assess Performance
-
-nb_learner <- makeLearner(cl =  "classif.naiveBayes", predict.type = 'prob' )
-
+xgb_learner <- makeLearner(cl =  "classif.ranger", predict.type = 'prob' )
 # CV Score
+xgb_model <- mlr::train(xgb_learner, task)
 
-crossval(learner = nb_learner, task = task, iters = 10, stratify = TRUE, measures =list(auc))
+crossval(learner = xgb_learner, task = task, iters = 5, stratify = TRUE, measures =list(auc, f1))
 
-# predict on test set 
-
-nb_preds <- predict(nb_model, task)
-
-performance(nb_preds, measures = 'auc')
-
-
-# getParamSet(nb_learner) tune these variables
-# perform grid/random/bayesian optimisation search 
-# 
-
-cluster_example <- makeClusterTask(data = mtcars)
-cluster_example
-
-View(listLearners(cluster_example))
-
-makeResampleDesc(method ='')
-# classif.ranger
-# classif.glmnet
-# classif.glmnet
-
-
-embeddings
-politeness 
-punctuation 
-curse words
-hate speech 
-
-
-passed to xgboost 
-or lightgbm - how does this impact model performance. 
 
 
 

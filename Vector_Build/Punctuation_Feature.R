@@ -1,13 +1,6 @@
 
 #################### Punctuation Feature #######################
 
-# Function which extracts counts of different types of punctuation used in 
-# text comments as well as a total count 
-
-# Load Packages -----------------------------------------------------------
-
-library(tidyverse)
-
 # Build Function ----------------------------------------------------------
 
 punctuation <- function (.data, id_col, text_col) {
