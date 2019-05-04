@@ -1,10 +1,10 @@
-from .base import BaseClassifier
+from .base import BaseKerasClassifier
 from keras.models import Sequential
 from keras.layers import Dense, LSTM, Bidirectional
 from .utils import auc
 
 
-class LSTMClassifier(BaseClassifier):
+class LSTMClassifier(BaseKerasClassifier):
 
     def __init__(self, params, word_index):
         super().__init__(params, word_index)
@@ -22,14 +22,14 @@ class LSTMClassifier(BaseClassifier):
         model.add(Dense(units=1,
                         activation='sigmoid'))
         model.compile(
-            loss='binary-crossentropy',
+            loss='binary_crossentropy',
             optimizer='nadam',
             metrics=[auc]
         )
         return model
 
 
-class BidirectionalLSTMClassifier(BaseClassifier):
+class BidirectionalLSTMClassifier(BaseKerasClassifier):
 
     def __init__(self, params, word_index):
         super().__init__(params, word_index)

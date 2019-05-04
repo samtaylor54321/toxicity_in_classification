@@ -5,11 +5,12 @@ from pathlib import Path
 from datetime import datetime
 from keras.layers import Embedding
 from keras.callbacks import EarlyStopping
+from keras.models import Model
 from sklearn.model_selection import StratifiedKFold
 from .utils import *
 from .embeddings import *
 
-class BaseClassifier:
+class BaseKerasClassifier:
     """
     Base class of Keras classifiers
     """
@@ -23,7 +24,6 @@ class BaseClassifier:
         self.batch_size = params['batch_size']
         self.epochs = params['max_epochs']
         self.bias_identities = get_identities()
-        self.run_timestamp = datetime.now().strftime('%Y%m%d_%H.%M.%S')
         self.comp_metric = None
         self.cv_comp_metrics = []
         self.result = {}
@@ -136,7 +136,15 @@ class BaseClassifier:
         self.run_config['cv_comp_metrics'] = self.cv_comp_metrics
         self.run_config['cv_results'] = self.cv_results
 
-    def save(self, path):
+    def intermediate_prediction(self, prediction_layer, data):
+        """ Predict on an intermediate layer """
+        intermediate_layer_model = Model(
+            inputs=self.model.input,
+            outputs=self.model.get_layer(prediction_layer).output
+        )
+        return intermediate_layer_model.predict(data)
+
+    def save(self, path, timestamp):
         if len(self.cv_comp_metrics) > 0:
             score = mean(self.cv_comp_metrics)
         else:
@@ -144,7 +152,7 @@ class BaseClassifier:
         score = nan if score is None else score
 
         out_dir = Path(path)
-        out_dir = out_dir / '{}_score_{:.4f}'.format(self.run_timestamp, score)
+        out_dir = out_dir / '{}_score_{:.4f}'.format(timestamp, score)
         out_dir.mkdir(parents=True, exist_ok=True)
 
         results_out_path = out_dir / 'CONFIG_{}.yaml'.format(self.__name__)

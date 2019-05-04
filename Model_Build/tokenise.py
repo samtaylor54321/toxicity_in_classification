@@ -1,6 +1,7 @@
 import gc
 import string
 import pickle
+import logging
 import numpy as np
 import pandas as pd
 from spacy.lang.en.stop_words import STOP_WORDS
@@ -68,7 +69,7 @@ def get_weights(df):
                         'other_sexual_orientation', 'physical_disability',
                         'psychiatric_or_mental_illness', 'transgender', 'white']
 
-    print('Calculating sample weights')
+    logging.info('Calculating sample weights')
     # Overall
     weights = np.ones((len(df),))
     # Subgroup
@@ -97,17 +98,17 @@ def sequence_tokens(df, params, train=True):
     """
     if train:
         test = pd.read_csv('Data/test.csv', nrows=params['debug_size'])
-        print('Tokenising test set')
+        logging.info('Tokenising test set')
         test = spacy_tokenise_and_lemmatize(test)
         tokenizer = Tokenizer()
-        print('Creating keras tokeniser and word index')
+        logging.info('Creating keras tokeniser and word index')
         tokenizer.fit_on_texts(list(df['comment_text'])
                                + list(test['comment_text']))
         word_index = tokenizer.word_index
         pickle.dump(tokenizer, open('Model_Build/Trained_Models/keras_tokeniser.pkl', 'wb'))
         del test
     else:
-        print('Loading pretrained tokenizer')
+        logging.info('Loading pretrained tokenizer')
         with open('Model_Build/Trained_Models/keras_tokeniser.pkl', 'wb') as f:
             try:
                 tokenizer = pickle.load(f)
@@ -117,7 +118,7 @@ def sequence_tokens(df, params, train=True):
                 raise e
         word_index = tokenizer.word_index
 
-    print('Sequencing and padding tokenised text')
+        logging.info('Sequencing and padding tokenised text')
     if params['embedding'] == 'word2vec':
         w2v = pickle.load(
             open('Model_Build/Trained_Models/'
