@@ -1,4 +1,5 @@
 import gc
+import logging
 import numpy as np
 
 
@@ -37,7 +38,7 @@ def get_coefs(word, *arr):
 
 
 def load_embeddings(path):
-    print('Reading in embedding matrix')
+    logging.info('Reading in embedding matrix')
     with open(path, 'r', encoding='latin-1') as f:
         return dict(get_coefs(*line.strip().split(' ')) for line in f)
 
@@ -45,7 +46,7 @@ def load_embeddings(path):
 def build_embedding_matrix(word_index, path, embedding_dim):
     embedding_index = load_embeddings(path)
     embedding_matrix = np.zeros((len(word_index) + 1, embedding_dim))
-    print('Building embedding matrix')
+    logging.info('Building embedding matrix')
     for word, i in word_index.items():
         try:
             embedding_matrix[i] = embedding_index[word]

@@ -1,59 +1,63 @@
 import gc
 import pickle
 import string
+import logging
 import pandas as pd
-from keras.models import load_model
-from keras.preprocessing.text import Tokenizer
-from keras.preprocessing.sequence import pad_sequences
-import keras.backend as K
-import tensorflow as tf
-from keras.losses import binary_crossentropy
+import lightgbm as lgbm
+from pathlib import Path
 from spacy.lang.en.stop_words import STOP_WORDS
 from spacy.lang.en import English
+from keras.preprocessing.text import Tokenizer
+from keras.preprocessing.sequence import pad_sequences
 
 # Paths to things we'll need
+model_path = '../input/final-model/MODEL_lightgbm_score_0.9573.txt'
 test_path = '../input/jigsaw-unintended-bias-in-toxicity-classification/test.csv'
-model_path = '../input/lstm-commoncrawl-classifier/MODEL_lstm_classifier.h5'
 
 params = {
     'max_sequence_length': 100,
-    'embedding': None
+    'embedding': None,
+    'pretrained_models': ['lstm', 'bidilstm']
 }
 
 
-def main(data_path, model_path):
+def main(data_path, model_path, params):
     # Load and tokenise
     test = pd.read_csv(data_path)
-    X = get_weights_and_sequence_tokens(test, params, train=False)
+    features = get_relational_features(test)
+
+    # Load test representations from pretrained models
+    model_preds = [
+        pd.read_csv('../input/common-crawl-lstm-preds/lstm_classifier_test_data_prediction.csv'),
+        pd.read_csv('../input/common-crawl-bidilstm-preds/bidirectional_lstm_classifier_test_data_prediction.csv')
+    ]
+    model_reps = [
+        pd.read_csv('../input/common-crawl-lstm-rep/lstm_classifier_test_data_representation.csv'),
+        pd.read_csv('../input/common-crawl-bidilstm-rep/bidirectional_lstm_classifier_test_data_representation.csv')
+    ]
+    X_test = pd.concat(model_preds + model_reps + [features], axis=1)
+    X_test = X_test.reindex(sorted(X_test.columns), axis=1)
 
     # Run model
-    print('Loading model')
-    model = load_model(model_path, custom_objects={'auc': auc, 'custom_loss': custom_loss})
-    print('Predicting')
-    y_pred = model.predict(X)
+    logging.info('Loading model')
+    model = lgbm.Booster(model_file=model_path)
+    logging.info('Predicting')
+    y_pred = model.predict(X_test)
 
     # Submit
-    print('Saving submission')
-    submission = pd.DataFrame({'id': test.index,
+    logging.info('Saving submission')
+    submission = pd.DataFrame({'id': test['id'],
                                'prediction': y_pred.reshape(-1, )})
     submission.to_csv('submission.csv', index=False)
-    print('Finished')
-
-
-def auc(y_true, y_pred):
-    """ Tensor-based ROC-AUC metric for use as loss function """
-    auc = tf.metrics.auc(y_true, y_pred)[1]
-    K.get_session().run(tf.local_variables_initializer())
-    return auc
-
-
-def custom_loss(y_true, y_pred):
-    return binary_crossentropy(K.reshape(y_true, (-1, 1)),
-                               y_pred)
+    logging.info('Finished')
 
 
 def spacy_tokenise_and_lemmatize(df):
-    # Identify punctuation and stopwords to ignore
+    """
+    Remove punctuation as per Spacy and a custom stopword list.
+    Lemmatize.
+    Set everythin lower case.
+    """
     punctuations = string.punctuation
     custom_stop_words = False
 
@@ -93,31 +97,34 @@ def spacy_tokenise_and_lemmatize(df):
     return df
 
 
-def get_weights_and_sequence_tokens(df, params, train=True):
+def sequence_tokens(df, params, train=True):
     """
-    Inspired by:
-    https://www.kaggle.com/tanreinama/simple-lstm-using-identity-parameters-solution/
+    Convert the sentences to sequences of integers corresponding to words.
+    Save the fitted indexer/tokeniser for use in submission
     """
-
-    print('Tokenising train set')
-    df = spacy_tokenise_and_lemmatize(df)
     if train:
-        test = pd.read_csv('Data/test.csv')
-        print('Tokenising test set')
+        test = pd.read_csv('Data/test.csv', nrows=params['debug_size'])
+        logging.info('Tokenising test set')
         test = spacy_tokenise_and_lemmatize(test)
         tokenizer = Tokenizer()
-        print('Creating keras tokeniser and word index')
+        logging.info('Creating keras tokeniser and word index')
         tokenizer.fit_on_texts(list(df['comment_text'])
                                + list(test['comment_text']))
         word_index = tokenizer.word_index
         pickle.dump(tokenizer, open('Model_Build/Trained_Models/keras_tokeniser.pkl', 'wb'))
         del test
     else:
-        print('Loading pretrained tokenizer')
-        tokenizer = pickle.load(open('../input/keras-tokeniser/keras_tokeniser.pkl', 'rb'))
+        logging.info('Loading pretrained tokenizer')
+        with open('../input/tokenisers/keras_tokeniser.pkl', 'rb') as f:
+            try:
+                tokenizer = pickle.load(f)
+            except FileNotFoundError as e:
+                print('Can\'t find prefitted tokeniser. May need to upload'
+                      'to Kaggle')
+                raise e
         word_index = tokenizer.word_index
 
-    print('Sequencing and padding tokenised text')
+    logging.info('Sequencing and padding tokenised text')
     if params['embedding'] == 'word2vec':
         w2v = pickle.load(
             open('Model_Build/Trained_Models/'
@@ -136,9 +143,110 @@ def get_weights_and_sequence_tokens(df, params, train=True):
 
     del tokenizer, df
     gc.collect()
+    return X, word_index
 
-    return X
+def get_relational_features(df):
+    """
+    Feature engineering for tree based models
+    """
+    logging.info('Adding relational features')
+    path = Path('..')
+    ud_data_path = path / 'input' / 'urban-dictionary-words-dataset' / 'urbandict-word-def.csv'
+    banned_data_path = path / 'input' / 'bad-words' / 'swearWords.csv'
+    # out_df_path = path / 'Data' / 'additional_features.csv'
+
+    vector_comments = vectorise_input_text(df['comment_text'])
+    ud_counts = \
+        get_urban_dictionary_features(vector_comments, ud_data_path)
+    bw_counts = \
+        get_banned_word_list(vector_comments, banned_data_path)
+    punc_counts = count_punctuation(df['comment_text'])
+    del vector_comments
+
+    feature_set = pd.concat([ud_counts,
+                             bw_counts,
+                             punc_counts],
+                            axis=1)
+    #logging.info('Writing relational features to %s', out_df_path)
+    #feature_set.to_csv(out_df_path, index=False)
+    #logging.info('Relational features complete')
+    return feature_set
+
+
+def vectorise_input_text(comments):
+    logging.info('Setting comments to lower case')
+    comments = comments.str.lower()
+    logging.info('Vectorising comments')
+    return comments.str.split(' ', expand=True, n=100)
+
+
+def get_urban_dictionary_features(comments, ud_data_path):
+    """
+    Takes a dataframe and appends features relating to the Urban
+    Dictionary dataset
+    """
+
+    logging.info('Loading Urban Dictionary data')
+    ud_data = pd.read_csv(ud_data_path,
+                          usecols=['word'],
+                          error_bad_lines=False,
+                          warn_bad_lines=False)
+    ud_data['word'] = ud_data['word'].str.lower()
+
+    # Ensure Urban Dictionary words are unique to save compute
+    ud_data.drop_duplicates(inplace=True)
+
+    logging.info('Counting UD corpus occurrences per comment')
+    counts = pd.DataFrame(
+        comments.isin(ud_data['word']).sum(),
+        columns=['n_occurences_in_ud_data']
+    )
+    logging.info('Complete. Average occurrences per comment: {:.4f}'
+                 .format(counts['n_occurences_in_ud_data'].mean()))
+    return counts
+
+
+def get_banned_word_list(comments, banned_word_data_path):
+    """
+    Takes a dataframe and appends features relating to the banned
+    word list
+    """
+
+    logging.info('Loading banned words data')
+    banned_words = pd.read_csv(banned_word_data_path,
+                               header=None)
+    banned_words = banned_words[0].str.lower()
+
+    # Ensure Urban Dictionary words are unique to save compute
+    banned_words.drop_duplicates(inplace=True)
+
+    logging.info('Counting occurrences of banned words per comment')
+    counts = pd.DataFrame(
+        comments.isin(banned_words).sum(),
+        columns=['n_swearwords']
+    )
+    logging.info('Complete. Average occurrences per comment: {:.4f}'
+                 .format(counts['n_swearwords'].mean()))
+    return counts
+
+
+def count_punctuation(comments):
+    """  From Sam's R script  """
+    punctuation = {
+        'exclamation_mark': '\!',
+        'question_mark': '\?',
+        'semicolon': '\;',
+        'ampersand': '\&',
+        'comma': '\,',
+        'full_stop': '\.'
+    }
+    cols = {}
+    for name, char in punctuation.items():
+        cols[name + '_count'] = comments.str.count(char).tolist()
+    return pd.DataFrame(cols)
 
 
 if __name__ == '__main__':
-    main(test_path, model_path)
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s %(levelname)-8s %(message)s')
+    main(test_path, model_path, params)

@@ -1,14 +1,19 @@
 import gc
+import logging
 import yaml
+import pandas as pd
+import numpy as np
 from numpy import mean, nan
 from pathlib import Path
-from datetime import datetime
 from keras.layers import Embedding
 from keras.callbacks import EarlyStopping
 from keras.models import Model
+from keras import backend as K
 from sklearn.model_selection import StratifiedKFold
-from .utils import *
-from .embeddings import *
+from sklearn.metrics import roc_auc_score
+from .utils import get_identities, get_final_metric, \
+    compute_bias_metrics_for_model
+from .embeddings import get_embedding_details, build_embedding_matrix
 
 class BaseKerasClassifier:
     """
@@ -29,6 +34,8 @@ class BaseKerasClassifier:
         self.result = {}
         self.cv_results = []
         self.model = None
+        self.representation_layer = None
+        self.embedding_matrix = None
 
     def get_n_unique_words(self):
         data = pd.read_csv(self.run_config['train_data_path'],
@@ -50,13 +57,14 @@ class BaseKerasClassifier:
                              weights=[embedding_matrix],
                              trainable=False)
         elif self.embedding in ['ft_common_crawl', 'glove_twitter']:
-            embedding_matrix = build_embedding_matrix(
-                self.word_index,
-                embedding_details['path'],
-                embedding_details['dim']
-            )
-            return Embedding(*embedding_matrix.shape,
-                             weights=[embedding_matrix],
+            if self.embedding_matrix is None:
+                self.embedding_matrix = build_embedding_matrix(
+                    self.word_index,
+                    embedding_details['path'],
+                    embedding_details['dim']
+                )
+            return Embedding(*self.embedding_matrix.shape,
+                             weights=[self.embedding_matrix],
                              trainable=False)
         else:
             return Embedding(self.get_n_unique_words(), 100)
@@ -98,14 +106,14 @@ class BaseKerasClassifier:
                 EarlyStopping(
                     monitor=early_stopping_loss,
                     min_delta=0.001,
-                    patience=3,
+                    patience=2,
                     verbose=1
                 )
             ]
         )
 
         if train_idx is not None:
-            print('Computing bias metrics...')
+            logging.info('Computing bias metrics...')
             identity_data = self.load_identity_data()
             identity_data = identity_data.iloc[val_idx, :]
 
@@ -116,25 +124,66 @@ class BaseKerasClassifier:
             self.comp_metric = get_final_metric(
                 bias_metrics_df, roc_auc_score(y_val, y_pred)
             )
-            print('Bias metrics computed. Score = {:.4f}'
-                  .format(self.comp_metric))
+            logging.info('Bias metrics computed. Score = {:.4f}'
+                         .format(self.comp_metric))
 
-    def cv(self, X, y, cv=StratifiedKFold(3), sample_weights=None):
+    def cv(self, X, y, X_test, cv=StratifiedKFold(3), sample_weights=None):
         """ Apply training function in CV fold """
+        oof_preds = pd.DataFrame(np.zeros(y.shape),
+                                 columns=[self.__name__ + '_preds'])
+        test_preds = np.zeros([X_test.shape[0], cv.get_n_splits()])
+        oof_reps, val_idxs = [], []
         for fold_no, (train_idx, val_idx) in \
                 enumerate(cv.split(X, np.round(y))):
-            print('Fitting fold {} / {}\n'.format(fold_no + 1, cv.get_n_splits()))
+            logging.info('Fitting fold {} / {}'
+                         .format(fold_no + 1, cv.get_n_splits()))
 
             self.train(X, y, train_idx, val_idx, sample_weights)
             self.cv_comp_metrics.append(self.comp_metric)
             self.cv_results.append(self.result.history)
 
+            logging.info('Making out-of-fold predictions')
+            oof_preds.iloc[val_idx] = self.model.predict(X[val_idx])
+            test_preds[:, fold_no] = self.model.predict(X_test).reshape(-1,)
+            logging.info('Getting out-of-fold representations')
+            oof_reps.append(self.intermediate_prediction(
+                self.representation_layer,
+                X[val_idx])
+            )
+            if fold_no == 0:
+                test_reps = self.intermediate_prediction(
+                    self.representation_layer,
+                    X_test
+                )
+            else:
+                test_reps += self.intermediate_prediction(
+                    self.representation_layer,
+                    X_test
+                )
+            val_idxs.append(val_idx)
             K.clear_session()
             del self.model
             gc.collect()
 
         self.run_config['cv_comp_metrics'] = self.cv_comp_metrics
         self.run_config['cv_results'] = self.cv_results
+        oof_reps = pd.DataFrame(
+            data=np.concatenate(oof_reps),
+            index=np.concatenate(val_idxs),
+        )
+        oof_reps.columns = [self.__name__ + '_rep_dim_' + str(i)
+                            for i in range(oof_reps.shape[1])]
+
+        test_preds = pd.DataFrame(
+            data=test_preds.mean(axis=1),
+            columns=[self.__name__ + '_preds']
+        )
+        test_reps = pd.DataFrame(
+            data=test_reps / cv.get_n_splits(),
+            columns=[self.__name__ + '_rep_dim_' + str(i)
+                     for i in range(test_reps.shape[1])]
+        )
+        return oof_preds, oof_reps, test_preds, test_reps
 
     def intermediate_prediction(self, prediction_layer, data):
         """ Predict on an intermediate layer """
@@ -152,7 +201,7 @@ class BaseKerasClassifier:
         score = nan if score is None else score
 
         out_dir = Path(path)
-        out_dir = out_dir / '{}_score_{:.4f}'.format(timestamp, score)
+        out_dir = out_dir / '{}'.format(timestamp)
         out_dir.mkdir(parents=True, exist_ok=True)
 
         results_out_path = out_dir / 'CONFIG_{}.yaml'.format(self.__name__)
@@ -167,5 +216,6 @@ class BaseKerasClassifier:
         with results_out_path.open('w') as f:
              yaml.dump(self.run_config, f)
 
-        model_out_path = out_dir / 'MODEL_{}.h5'.format(self.__name__)
+        model_out_path = out_dir / 'MODEL_{}_score_{:.4f}.h5'\
+            .format(self.__name__, score)
         self.model.save(str(model_out_path))

@@ -109,7 +109,7 @@ def sequence_tokens(df, params, train=True):
         del test
     else:
         logging.info('Loading pretrained tokenizer')
-        with open('Model_Build/Trained_Models/keras_tokeniser.pkl', 'wb') as f:
+        with open('Model_Build/Trained_Models/keras_tokeniser.pkl', 'rb') as f:
             try:
                 tokenizer = pickle.load(f)
             except FileNotFoundError as e:
@@ -118,7 +118,7 @@ def sequence_tokens(df, params, train=True):
                 raise e
         word_index = tokenizer.word_index
 
-        logging.info('Sequencing and padding tokenised text')
+    logging.info('Sequencing and padding tokenised text')
     if params['embedding'] == 'word2vec':
         w2v = pickle.load(
             open('Model_Build/Trained_Models/'
@@ -137,5 +137,4 @@ def sequence_tokens(df, params, train=True):
 
     del tokenizer, df
     gc.collect()
-
     return X, word_index
