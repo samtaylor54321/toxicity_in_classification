@@ -119,21 +119,8 @@ def sequence_tokens(df, params, train=True):
         word_index = tokenizer.word_index
 
     logging.info('Sequencing and padding tokenised text')
-    if params['embedding'] == 'word2vec':
-        w2v = pickle.load(
-            open('Model_Build/Trained_Models/'
-                 'word2vec_model_custom_stopwords.pkl', 'rb')
-        )
-        sequences = []
-        for row in df['comment_text'].str.split(' ').tolist():
-            sequences.append([w2v.wv.vocab[word].index
-                              if word in w2v.wv.vocab else 0
-                              for word in row])
-        sequences = pad_sequences(sequences, maxlen=100)
-        X = pd.DataFrame(sequences).values
-    else:
-        X = tokenizer.texts_to_sequences(list(df['comment_text']))
-        X = pad_sequences(X, maxlen=params['max_sequence_length'])
+    X = tokenizer.texts_to_sequences(list(df['comment_text']))
+    X = pad_sequences(X, maxlen=params['max_sequence_length'])
 
     del tokenizer, df
     gc.collect()

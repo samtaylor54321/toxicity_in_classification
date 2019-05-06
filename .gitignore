@@ -16,6 +16,8 @@ __pycache__/*
 
 # Data
 *.csv
+*.txt
+*.zip
 
 # Models
 *.pkl

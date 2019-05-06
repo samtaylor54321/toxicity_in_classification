@@ -51,6 +51,9 @@ Metric = competition's custom bias metric
 | Single LSTM | Custom word2vec | Custom stopwords | 0.9194 |  |
 | Single LSTM | fastText Common Crawl | Batch size halved | 0.9286 | 0.91713 |
 | Single LSTM | GloVe Twitter | Same as above | 0.9244 |  |
+| 2 Bidirectional LSTM layers, 2 deep layers | fastText Common Crawl | From Kaggle | 0.9318 | 0.92271 |
+| 2 Bidirectional LSTM layers, 2 deep layers | GloVe Common Crawl | From Kaggle | 0.9315 |  |
+| LightGBM + above 2 models | GloVe + fastText Common Crawl | Train on NN reps and preds | NA (0.9591 AUC) | 0.92392 |
 
 ## Embeddings
 

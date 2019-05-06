@@ -5,14 +5,19 @@ import numpy as np
 
 def get_embedding_details(name):
     embedding_library = {
-        'word2vec': {
-            'path': 'Embedding_Build/Trained_Embeddings/'
-                    'word2vec_embedding_weights_custom_stopwords.csv',
-            'dim': 100
-        },
+        # 'word2vec': {
+        #     'path': 'Embedding_Build/Trained_Embeddings/'
+        #             'word2vec_embedding_weights_custom_stopwords.csv',
+        #     'dim': 100
+        # },
         'ft_common_crawl': {
             'path': 'Embedding_Build/Pretrained_Embeddings/'
                     'crawl-300d-2M.vec/crawl-300d-2M.vec',
+            'dim': 300
+        },
+        'glove_common_crawl': {
+            'path': 'Embedding_Build/Pretrained_Embeddings/'
+                    'glove.840B.300d/glove.840B.300d.txt',
             'dim': 300
         },
         'glove_twitter': {

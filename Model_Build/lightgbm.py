@@ -64,16 +64,13 @@ class LightGBMClassifier:
         )
         self.optimum_boost_rounds = np.argmax(self.cv_results['auc-mean'])
 
-    def save(self, path, timestamp):
+    def save(self, save_dir):
         if self.cv_results:
             score = np.max(self.cv_results['auc-mean'])
         else:
             score = None
-        out_dir = Path(path)
-        out_dir = out_dir / '{}'.format(timestamp)
-        out_dir.mkdir(parents=True, exist_ok=True)
 
-        importance_path = out_dir / 'lightgbm_feature_importance.csv'
+        importance_path = save_dir / 'lightgbm_feature_importance.csv'
         feature_importance = pd.DataFrame({
             'Feature': self.X_column_names,
             'Importance': self.model.feature_importance()

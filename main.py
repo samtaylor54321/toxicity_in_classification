@@ -1,8 +1,12 @@
 import gc
 import logging
 import pandas as pd
+import numpy as np
+from pathlib import Path
 from datetime import datetime
-from Model_Build.lstm import LSTMClassifier, BidirectionalLSTMClassifier
+from keras import backend as K
+from Model_Build.lstm import LSTMClassifier, BidirectionalLSTMClassifier, \
+    BidrectionalLSTMGlove
 from Model_Build.lightgbm import LightGBMClassifier
 from sklearn.model_selection import StratifiedKFold
 from Model_Build.tokenise import get_weights, spacy_tokenise_and_lemmatize, \
@@ -19,18 +23,17 @@ params = {
     'test_data_path': 'Data/test.csv',
     'results_path': 'Results',
     'use_premade_relational_features': True,
-    'embedding': 'ft_common_crawl',  # See embeddings.py for dict of options
     'debug_size': None,
     'max_sequence_length': 100,
     'models_to_train': [],  # Used to create a stack
-    'pre_trained_models': ['lstm', 'bidi_lstm'],  # Added to stack
+    'pre_trained_models': ['bidi_lstm_glove', 'bidi_lstm'],  # Added to stack
     'tree_model': 'lightgbm',  # Trained on the stack's OOF preds
-    'lstm_units': 64,
-    'batch_size': 256,  # 512 for LSTM, 256 for Bidirectional lstm
-    'max_epochs': 10,
     'n_cv_folds': 4,
     'random_seed': 0,
 }
+save_dir = Path(params['results_path']) / run_timestamp
+save_dir.mkdir(parents=True, exist_ok=True)
+
 df = pd.read_csv(params['train_data_path'], nrows=params['debug_size'])
 test_df = pd.read_csv(params['test_data_path'], nrows=params['debug_size'])
 
@@ -39,6 +42,7 @@ test_df = pd.read_csv(params['test_data_path'], nrows=params['debug_size'])
 model_dict = {
     'lstm': LSTMClassifier,
     'bidi_lstm': BidirectionalLSTMClassifier,
+    'bidi_lstm_glove': BidrectionalLSTMGlove,
     'lightgbm': LightGBMClassifier
 }
 
@@ -77,7 +81,7 @@ for model_name in params['models_to_train']:
     model_reps.append(cv_rep)
     logging.info('Training model %s on full dataset', model_name)
     model.train(X, y, sample_weights=sample_weight)
-    model.save(params['results_path'], run_timestamp)
+    model.save(save_dir)
     cv_rep.to_csv('Data/{}_train_data_representation.csv'.format(model.__name__),
                   index=False)
     cv_pred.to_csv('Data/{}_train_data_prediction.csv'.format(model.__name__),
@@ -86,6 +90,7 @@ for model_name in params['models_to_train']:
                   index=False)
     test_pred.to_csv('Data/{}_test_data_prediction.csv'.format(model.__name__),
                   index=False)
+    K.clear_session()
     del model
     gc.collect()
 del X
@@ -95,9 +100,13 @@ for model_name in params['pre_trained_models']:
     logging.info('Loading pretrained representations from model %s', model_name)
     model = model_dict[model_name](params, None)
     cv_rep = pd.read_csv('Data/{}_train_data_representation.csv'
-                         .format(model.__name__), nrows=params['debug_size'])
+                         .format(model.__name__),
+                         nrows=params['debug_size'],
+                         dtype=np.float32)
     cv_pred = pd.read_csv('Data/{}_train_data_prediction.csv'
-                          .format(model.__name__), nrows=params['debug_size'])
+                          .format(model.__name__),
+                          nrows=params['debug_size'],
+                          dtype=np.float32)
     model_preds.append(cv_pred)
     model_reps.append(cv_rep)
 
@@ -107,12 +116,14 @@ X_trees = pd.concat(model_preds + model_reps + [features], axis=1)
 X_trees = X_trees.reindex(sorted(X_trees.columns), axis=1)
 logging.info('Writing final training set')
 X_trees.to_csv('Data/stacked_model_dataset.csv', index=False)
+del model_preds, model_reps, features
+gc.collect()
 
 logging.info('Training final model')
 model = model_dict[params['tree_model']](params)
 model.cv(X_trees, y, sample_weights=sample_weight)
 model.train(X_trees, y, sample_weights=sample_weight)
-model.save(params['results_path'], run_timestamp)
+model.save(save_dir)
 logging.info(model.cv_results)
 logging.info('Complete')
 

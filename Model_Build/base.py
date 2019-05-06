@@ -24,18 +24,21 @@ class BaseKerasClassifier:
         """ Set generic parameters """
         self.run_config = params
         self.word_index = word_index
-        self.embedding = params['embedding']
-        self.identity_data_path = params['train_data_path']
-        self.batch_size = params['batch_size']
-        self.epochs = params['max_epochs']
         self.bias_identities = get_identities()
+        self.identity_data_path = params['train_data_path']
+
+        self.embedding = None
+        self.batch_size = None
+        self.epochs = None
+        self.representation_layer = None
+        self.embedding_matrix = None
+
         self.comp_metric = None
         self.cv_comp_metrics = []
         self.result = {}
         self.cv_results = []
         self.model = None
-        self.representation_layer = None
-        self.embedding_matrix = None
+
 
     def get_n_unique_words(self):
         data = pd.read_csv(self.run_config['train_data_path'],
@@ -51,12 +54,12 @@ class BaseKerasClassifier:
     def embedding_as_keras_layer(self):
         """ Load specified embedding as a Keras layer """
         embedding_details = get_embedding_details(self.embedding)
-        if self.embedding == 'word2vec':
-            embedding_matrix = pd.read_csv(embedding_details['path'])
-            return Embedding(*embedding_matrix.shape,
-                             weights=[embedding_matrix],
-                             trainable=False)
-        elif self.embedding in ['ft_common_crawl', 'glove_twitter']:
+        # if self.embedding == 'word2vec':
+        #     embedding_matrix = pd.read_csv(embedding_details['path'])
+        #     return Embedding(*embedding_matrix.shape,
+        #                      weights=[embedding_matrix],
+        #                      trainable=False)
+        if self.embedding:
             if self.embedding_matrix is None:
                 self.embedding_matrix = build_embedding_matrix(
                     self.word_index,
@@ -193,18 +196,14 @@ class BaseKerasClassifier:
         )
         return intermediate_layer_model.predict(data)
 
-    def save(self, path, timestamp):
+    def save(self, save_dir):
         if len(self.cv_comp_metrics) > 0:
             score = mean(self.cv_comp_metrics)
         else:
             score = self.comp_metric
         score = nan if score is None else score
 
-        out_dir = Path(path)
-        out_dir = out_dir / '{}'.format(timestamp)
-        out_dir.mkdir(parents=True, exist_ok=True)
-
-        results_out_path = out_dir / 'CONFIG_{}.yaml'.format(self.__name__)
+        results_out_path = save_dir / 'CONFIG_{}.yaml'.format(self.__name__)
         self.run_config['cv_comp_metrics'] = \
             [str(x) for x in self.run_config['cv_comp_metrics']]
         scores = {}
