@@ -69,61 +69,20 @@ del df, test_df
 
 # # --- Model training --- # #
 
-# Train each model, recording OOF predictions for use in a stacked model
-model_preds, model_reps = [], []
+# Train each model
 for model_name in params['models_to_train']:
     model = model_dict[model_name](params, word_index)
     cv = StratifiedKFold(params['n_cv_folds'],
                          random_state=params['random_seed'])
     logging.info('Cross validating model %s', model_name)
-    cv_pred, cv_rep, test_pred, test_rep = model.cv(X, y, X_test, cv, sample_weight)
-    model_preds.append(cv_pred)
-    model_reps.append(cv_rep)
+    model.cv(X, y, X_test, cv, sample_weight)
     logging.info('Training model %s on full dataset', model_name)
     model.train(X, y, sample_weights=sample_weight)
     model.save(save_dir)
-    cv_rep.to_csv('Data/{}_train_data_representation.csv'.format(model.__name__),
-                  index=False)
-    cv_pred.to_csv('Data/{}_train_data_prediction.csv'.format(model.__name__),
-                  index=False)
-    test_rep.to_csv('Data/{}_test_data_representation.csv'.format(model.__name__),
-                  index=False)
-    test_pred.to_csv('Data/{}_test_data_prediction.csv'.format(model.__name__),
-                  index=False)
     K.clear_session()
     del model
     gc.collect()
 del X
 
-# If using any pretrained models, add their representations to the stack
-for model_name in params['pre_trained_models']:
-    logging.info('Loading pretrained representations from model %s', model_name)
-    model = model_dict[model_name](params, None)
-    cv_rep = pd.read_csv('Data/{}_train_data_representation.csv'
-                         .format(model.__name__),
-                         nrows=params['debug_size'],
-                         dtype=np.float32)
-    cv_pred = pd.read_csv('Data/{}_train_data_prediction.csv'
-                          .format(model.__name__),
-                          nrows=params['debug_size'],
-                          dtype=np.float32)
-    model_preds.append(cv_pred)
-    model_reps.append(cv_rep)
-
-# Train a tree model on the stack's predictions
-logging.info('Combining model representations and relational features')
-X_trees = pd.concat(model_preds + model_reps + [features], axis=1)
-X_trees = X_trees.reindex(sorted(X_trees.columns), axis=1)
-logging.info('Writing final training set')
-X_trees.to_csv('Data/stacked_model_dataset.csv', index=False)
-del model_preds, model_reps, features
-gc.collect()
-
-logging.info('Training final model')
-model = model_dict[params['tree_model']](params)
-model.cv(X_trees, y, sample_weights=sample_weight)
-model.train(X_trees, y, sample_weights=sample_weight)
-model.save(save_dir)
-logging.info(model.cv_results)
 logging.info('Complete')
 

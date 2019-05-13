@@ -3,15 +3,19 @@ import pickle
 import string
 import logging
 import pandas as pd
+import numpy as np
 import lightgbm as lgbm
+from glob import glob
 from pathlib import Path
+from sklearn.preprocessing import MinMaxScaler
 from spacy.lang.en.stop_words import STOP_WORDS
 from spacy.lang.en import English
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
+from keras.models import load_model
 
 # Paths to things we'll need
-model_path = '../input/final-model/MODEL_lightgbm_score_0.9573.txt'
+model_dir = '../input/final-model/MODEL_lightgbm_score_0.9573.txt'
 test_path = '../input/jigsaw-unintended-bias-in-toxicity-classification/test.csv'
 
 params = {
@@ -21,10 +25,29 @@ params = {
 }
 
 
-def main(data_path, model_path, params):
+def main(data_path, model_dir, params):
     # Load and tokenise
     test = pd.read_csv(data_path)
-    features = get_relational_features(test)
+    test = spacy_tokenise_and_lemmatize(test)
+    test = spacy_tokenise_and_lemmatize(test)
+    X_test, _ = sequence_tokens(test, params, train=False)
+    del test
+
+    # Load pretrained models
+    logging.info('Loading pretrained models')
+    models = [load_model(path) for path in glob(model_dir)]
+    scores = [path[-10:-4] for path in glob(model_dir)]
+
+    # Assign weights to a models prediction based on CV score
+
+
+    # Predict on test set
+    preds = np.concatenate([model.predict(X_test) for model in models])
+    y_pred = np.zeros([preds.shape[0], ])
+    for i, score in enumerate(scores):
+        y_pred +=
+
+
 
     # Load test representations from pretrained models
     model_preds = [
@@ -39,7 +62,7 @@ def main(data_path, model_path, params):
     X_test = X_test.reindex(sorted(X_test.columns), axis=1)
 
     # Run model
-    logging.info('Loading model')
+
     model = lgbm.Booster(model_file=model_path)
     logging.info('Predicting')
     y_pred = model.predict(X_test)
@@ -249,4 +272,4 @@ def count_punctuation(comments):
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s %(levelname)-8s %(message)s')
-    main(test_path, model_path, params)
+    main(test_path, model_dir, params)

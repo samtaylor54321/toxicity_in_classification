@@ -132,9 +132,6 @@ class BaseKerasClassifier:
 
     def cv(self, X, y, X_test, cv=StratifiedKFold(3), sample_weights=None):
         """ Apply training function in CV fold """
-        oof_preds = pd.DataFrame(np.zeros(y.shape),
-                                 columns=[self.__name__ + '_preds'])
-        test_preds = np.zeros([X_test.shape[0], cv.get_n_splits()])
         oof_reps, val_idxs = [], []
         for fold_no, (train_idx, val_idx) in \
                 enumerate(cv.split(X, np.round(y))):
@@ -145,24 +142,6 @@ class BaseKerasClassifier:
             self.cv_comp_metrics.append(self.comp_metric)
             self.cv_results.append(self.result.history)
 
-            logging.info('Making out-of-fold predictions')
-            oof_preds.iloc[val_idx] = self.model.predict(X[val_idx])
-            test_preds[:, fold_no] = self.model.predict(X_test).reshape(-1,)
-            logging.info('Getting out-of-fold representations')
-            oof_reps.append(self.intermediate_prediction(
-                self.representation_layer,
-                X[val_idx])
-            )
-            if fold_no == 0:
-                test_reps = self.intermediate_prediction(
-                    self.representation_layer,
-                    X_test
-                )
-            else:
-                test_reps += self.intermediate_prediction(
-                    self.representation_layer,
-                    X_test
-                )
             val_idxs.append(val_idx)
             K.clear_session()
             del self.model
@@ -170,23 +149,7 @@ class BaseKerasClassifier:
 
         self.run_config['cv_comp_metrics'] = self.cv_comp_metrics
         self.run_config['cv_results'] = self.cv_results
-        oof_reps = pd.DataFrame(
-            data=np.concatenate(oof_reps),
-            index=np.concatenate(val_idxs),
-        )
-        oof_reps.columns = [self.__name__ + '_rep_dim_' + str(i)
-                            for i in range(oof_reps.shape[1])]
-
-        test_preds = pd.DataFrame(
-            data=test_preds.mean(axis=1),
-            columns=[self.__name__ + '_preds']
-        )
-        test_reps = pd.DataFrame(
-            data=test_reps / cv.get_n_splits(),
-            columns=[self.__name__ + '_rep_dim_' + str(i)
-                     for i in range(test_reps.shape[1])]
-        )
-        return oof_preds, oof_reps, test_preds, test_reps
+        return
 
     def intermediate_prediction(self, prediction_layer, data):
         """ Predict on an intermediate layer """
